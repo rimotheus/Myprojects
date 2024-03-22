@@ -1,0 +1,59 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+import csv
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer": "https://www.amazon.sg/",
+    "Connection": "keep-alive"
+}
+
+def get_reviews(url, headers):
+    reviews = []
+    session = requests.Session()
+    page_num = 1
+
+    while True:
+        print("Scraping page", page_num)
+        response = session.get(url.format(page_num), headers=headers)
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        # Check if redirected to login page
+        if soup.find("div", {"class": "a-box-inner a-padding-extra-large"}) is not None:
+            print("Login page reached. Ending process.")
+            break
+        #find bodies
+        review_divs = soup.find_all("div", {"data-hook": "review"})
+        if len(review_divs) == 0:
+            print("No more reviews found. Ending process.")
+            break
+        # get data from bodies
+        for review in review_divs:
+            title = review.find("span", {"class": "a-profile-name"}).text.strip()
+            header = review.find("span",{"class":"a-size-base review-title a-color-base review-title-content a-text-bold"}).text.strip()
+            body = review.find("span", {"data-hook": "review-body"}).text.strip()
+            rating = float(review.find("span", {"class": "a-icon-alt"}).text.replace("out of 5 stars", "").strip())
+            reviews.append({"title": title, "body": body, "rating": rating})
+
+        page_num += 1
+        time.sleep(2) # delay to avoid overloading Amazon's server
+
+    return reviews
+
+url = 'https://www.amazon.sg/Sony-WH-1000XM5-Cancelling-Wireless-Headphones/product-reviews/B09Y2MYL5C/ref=cm_cr_dp_d_show_all_btm?ie=UTF8&reviewerType=all_reviews&pageNumber={}'
+
+reviews = get_reviews(url, headers)
+
+print("Number of reviews scraped:", len(reviews))
+
+# Write reviews to CSV file
+with open("C:/Users/{your username}/Desktop/reviews.csv", mode="w", newline="", encoding="utf-8") as csv_file:
+    fieldnames = ["title","header", "body", "rating"]
+    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+    writer.writeheader()
+    for review in reviews:
+        writer.writerow(review)
